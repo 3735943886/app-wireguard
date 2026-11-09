@@ -16,6 +16,8 @@ declare fwmark
 declare host
 declare interface
 declare keep_alive
+declare lan_ip
+declare line
 declare mtu
 declare name
 declare peer_private_key
@@ -26,9 +28,17 @@ declare post_up
 declare pre_down
 declare pre_shared_key
 declare pre_up
+declare protocol
+declare redirect
+declare -a redirect_down
+declare -a redirect_up
+declare redirect_port
+declare rule
 declare server_private_key
 declare server_public_key
 declare table
+declare to_host
+declare to_port
 
 if ! bashio::fs.directory_exists '/ssl/wireguard'; then
     mkdir -p /ssl/wireguard ||
@@ -41,6 +51,26 @@ if bashio::config.has_value "server.interface"; then
     interface=$(bashio::config "server.interface")
 fi
 config="/etc/wireguard/${interface}.conf"
+
+# Detect the LAN IPv4 address of the Home Assistant host
+lan_ip=""
+if lan_ip=$(bashio::network.ipv4_address 2> /dev/null); then
+    lan_ip=$(head -n 1 <<< "${lan_ip}")
+    lan_ip="${lan_ip%%/*}"
+else
+    lan_ip=""
+fi
+
+# Determine the host clients use to connect, default to the LAN address
+if bashio::config.has_value 'server.host'; then
+    host=$(bashio::config 'server.host')
+elif bashio::var.has_value "${lan_ip}"; then
+    host="${lan_ip}"
+    bashio::log.info "No server host configured, using LAN address ${host}"
+else
+    bashio::exit.nok \
+        "Could not detect the LAN address of this host, please set server.host"
+fi
 
 # Start creation of configuration
 echo "[Interface]" > "${config}"
@@ -134,6 +164,46 @@ if bashio::config.has_value 'server.post_down'; then
     fi
 fi
 
+# Redirect (DNAT) traffic coming in through the tunnel
+redirect_up=()
+redirect_down=()
+if bashio::config.has_value 'redirects'; then
+    for redirect in $(bashio::config 'redirects|keys'); do
+        redirect_port=$(bashio::config "redirects[${redirect}].port")
+
+        protocol="tcp"
+        if bashio::config.has_value "redirects[${redirect}].protocol"; then
+            protocol=$(bashio::config "redirects[${redirect}].protocol")
+        fi
+
+        to_host="${lan_ip}"
+        if bashio::config.has_value "redirects[${redirect}].to_host"; then
+            to_host=$(bashio::config "redirects[${redirect}].to_host")
+        fi
+        if ! bashio::var.has_value "${to_host}"; then
+            bashio::exit.nok \
+                "Could not detect the LAN address for redirect of port ${redirect_port}, please set to_host"
+        fi
+
+        to_port="${redirect_port}"
+        if bashio::config.has_value "redirects[${redirect}].to_port"; then
+            to_port=$(bashio::config "redirects[${redirect}].to_port")
+        fi
+
+        rule="PREROUTING -i %i -p ${protocol} --dport ${redirect_port}"
+        rule+=" -j DNAT --to-destination ${to_host}:${to_port}"
+        redirect_up+=("iptables -t nat -A ${rule}")
+        redirect_down+=("iptables -t nat -D ${rule}")
+
+        bashio::log.info \
+            "Redirecting ${protocol}/${redirect_port} from the tunnel to ${to_host}:${to_port}"
+    done
+
+    if [[ $(</proc/sys/net/ipv4/ip_forward) -eq 0 ]]; then
+        bashio::log.warning "Redirects require IP forwarding, which is disabled!"
+    fi
+fi
+
 # Finish up the main server configuration
 {
     echo "PrivateKey = ${server_private_key}"
@@ -151,6 +221,14 @@ fi
     # Post up & down
     bashio::var.has_value "${post_up}" && echo "PostUp = ${post_up}"
     bashio::var.has_value "${post_down}" && echo "PostDown = ${post_down}"
+
+    # Redirects
+    for rule in "${redirect_up[@]}"; do
+        echo "PostUp = ${rule}"
+    done
+    for rule in "${redirect_down[@]}"; do
+        echo "PostDown = ${rule}"
+    done
 
     # fwmark for outgoing packages
     bashio::config.has_value "server.fwmark" && echo "FwMark = ${fwmark}"
@@ -186,7 +264,6 @@ for peer in $(bashio::config 'peers|keys'); do
     config_dir="/ssl/wireguard/${name}"
     endpoint=$(bashio::config "peers[${peer}].endpoint")
     fwmark=$(bashio::config "peers[${peer}].fwmark")
-    host=$(bashio::config 'server.host')
     port=$(bashio::app.port "51820/udp")
     pre_shared_key=$(bashio::config "peers[${peer}].pre_shared_key")
 
@@ -274,7 +351,7 @@ for peer in $(bashio::config 'peers|keys'); do
     # Write client configuration file
     {
         echo "[Interface]"
-        bashio::fs.file_exists "${config_dir}/private_key" \
+        bashio::var.has_value "${peer_private_key}" \
             && echo "PrivateKey = ${peer_private_key}"
         echo "Address = ${addresses}"
         echo "DNS = ${dns}"
@@ -286,8 +363,18 @@ for peer in $(bashio::config 'peers|keys'); do
         echo "Endpoint = ${host}:${port}"
         echo "AllowedIPs = ${allowed_ips}"
         echo "PersistentKeepalive = ${keep_alive}"
+        bashio::config.has_value "peers[${peer}].pre_shared_key" \
+            && echo "PresharedKey = ${pre_shared_key}"
         echo ""
     } > "${config_dir}/client.conf"
+
+    # Optionally show the client configuration in the log
+    if bashio::config.true 'log_client_config'; then
+        bashio::log.info "Client configuration for ${name}:"
+        while IFS= read -r line; do
+            bashio::log.info "    ${line}"
+        done < "${config_dir}/client.conf"
+    fi
 
     # Generate QR code with client configuration
     qrencode -t PNG -o "${config_dir}/qrcode.png" < "${config_dir}/client.conf"

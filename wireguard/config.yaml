@@ -23,7 +23,6 @@ map:
   - ssl:rw
 options:
   server:
-    host: myautomatedhome.duckdns.org
     addresses:
       - 172.27.66.1
     dns: []
@@ -33,10 +32,12 @@ options:
         - 172.27.66.2
       allowed_ips: []
       client_allowed_ips: []
+  redirects: []
 schema:
   log_level: list(trace|debug|info|notice|warning|error|fatal)?
+  log_client_config: bool?
   server:
-    host: str
+    host: str?
     interface: match(^wg([0-9])+$)?
     addresses:
       - str
@@ -65,3 +66,8 @@ schema:
       endpoint: str?
       pre_shared_key: str?
       fwmark: str?
+  redirects:
+    - port: port
+      protocol: list(tcp|udp)?
+      to_host: str?
+      to_port: port?

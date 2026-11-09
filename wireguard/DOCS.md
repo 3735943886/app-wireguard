@@ -101,12 +101,15 @@ peers:
 
 **Note**: _This is just an example, don't copy and paste it! Create your own!_
 
-### Option: `server.host`
+### Option: `server.host` _(optional)_
 
 This configuration option is the hostname that your clients will use to connect
 to your WireGuard app. The `host` is mainly used to generate client
 configurations and SHOULD NOT contain a port. If you want to change the port,
 use the "Network" section of the app configuration.
+
+When left empty, the LAN IPv4 address of your Home Assistant host is used,
+which is fine for clients on your local network (like a router).
 
 Example: `myautomatedhome.duckdns.org`, for local testing `homeassistant.local`
 will actually work.
@@ -330,6 +333,27 @@ A 32-bit fwmark for outgoing packets. May be specified in hexadecimal by
 prepending "0x". If you don't know what this is, then you probably don't
 need it.
 
+### Option: `redirects` _(optional)_
+
+A list of ports to redirect (DNAT) for traffic coming in through the tunnel.
+Any connection from a peer to the given port, regardless of its destination,
+is sent to `to_host:to_port` instead.
+
+- `port`: The destination port to intercept.
+- `protocol`: `tcp` (default) or `udp`.
+- `to_host`: Where to send it. Defaults to the LAN IPv4 address of your
+  Home Assistant host.
+- `to_port`: The port to send it to. Defaults to `port`.
+
+The rules are added on top of `server.post_up`/`server.post_down`, so they
+also work with custom PostUp/PostDown commands.
+
+### Option: `log_client_config` _(optional)_
+
+When set to `true`, the generated client configuration of each peer is printed
+in the app log, so it can be copied without opening `/ssl/wireguard`.
+**The log then contains private keys**, so turn it off again when done.
+
 ### Option: `log_level` _(optional)_
 
 The `log_level` option controls the level of log output by the app and can
@@ -347,6 +371,43 @@ Please note that each level automatically includes log messages from a
 more severe level, e.g., `debug` also shows `info` messages. By default,
 the `log_level` is set to `info`, which is the recommended setting unless
 you are troubleshooting.
+
+## Redirecting LG appliance traffic with an ipTIME router (rusthinq)
+
+ipTIME routers cannot DNAT outbound traffic, but their WireGuard client can
+send traffic of selected devices (by MAC address) through a tunnel. Point it
+at this app and let the app redirect the appliances' connections to rusthinq
+running in Home Assistant:
+
+```yaml
+server:
+  addresses:
+    - 10.10.10.1
+  dns: []
+peers:
+  - name: iptime
+    addresses:
+      - 10.10.10.2
+    allowed_ips: []
+    client_allowed_ips:
+      - 0.0.0.0/0
+redirects:
+  - port: 443
+    to_port: 443 # rusthinq HTTPS port, e.g. 8443 if 443 is taken
+  - port: 8883 # rusthinq MQTT port
+log_client_config: true
+```
+
+1. Start the app and copy the `iptime` client configuration from the log (or
+   `/ssl/wireguard/iptime/client.conf`), then set `log_client_config` back to
+   `false`.
+2. On the ipTIME admin page, go to
+   `관리도구 › VPN 설정 › WireGuard 클라이언트` and add a connection using
+   those values. The endpoint is the LAN address of Home Assistant.
+3. Under `클라이언트 사용 관리`, add each LG appliance by MAC address with
+   destination `모든 목적지` and network lock `끄기`.
+4. Reconnect the appliances (power-cycle, or disconnect them from Wi-Fi) so
+   they open new connections through the tunnel.
 
 ## Finding generated client configurations
 
