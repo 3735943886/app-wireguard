@@ -8,6 +8,7 @@ declare -a list
 declare addresses
 declare allowed_ips
 declare config
+declare client_dns
 declare config_dir
 declare dns
 declare endpoint
@@ -30,6 +31,7 @@ declare pre_shared_key
 declare pre_up
 declare protocol
 declare redirect
+declare -a redirect_info
 declare -a redirect_down
 declare -a redirect_up
 declare redirect_port
@@ -37,6 +39,8 @@ declare rule
 declare server_private_key
 declare server_public_key
 declare table
+declare -a web_peers
+declare www
 declare to_host
 declare to_port
 
@@ -167,6 +171,7 @@ fi
 # Redirect (DNAT) traffic coming in through the tunnel
 redirect_up=()
 redirect_down=()
+redirect_info=()
 if bashio::config.has_value 'redirects'; then
     for redirect in $(bashio::config 'redirects|keys'); do
         redirect_port=$(bashio::config "redirects[${redirect}].port")
@@ -194,6 +199,7 @@ if bashio::config.has_value 'redirects'; then
         rule+=" -j DNAT --to-destination ${to_host}:${to_port}"
         redirect_up+=("iptables -t nat -A ${rule}")
         redirect_down+=("iptables -t nat -D ${rule}")
+        redirect_info+=("${protocol}/${redirect_port} → ${to_host}:${to_port}")
 
         bashio::log.info \
             "Redirecting ${protocol}/${redirect_port} from the tunnel to ${to_host}:${to_port}"
@@ -348,13 +354,22 @@ for peer in $(bashio::config 'peers|keys'); do
         )
     fi
 
+    # Determine DNS for client configuration, "off" leaves it out
+    client_dns="${dns}"
+    if bashio::config.has_value "peers[${peer}].client_dns"; then
+        client_dns=$(bashio::config "peers[${peer}].client_dns")
+        if [[ "${client_dns}" = "off" ]]; then
+            client_dns=""
+        fi
+    fi
+
     # Write client configuration file
     {
         echo "[Interface]"
         bashio::var.has_value "${peer_private_key}" \
             && echo "PrivateKey = ${peer_private_key}"
         echo "Address = ${addresses}"
-        echo "DNS = ${dns}"
+        bashio::var.has_value "${client_dns}" && echo "DNS = ${client_dns}"
         bashio::config.has_value "peers[${peer}].fwmark" \
             && echo "FwMark = ${fwmark}"
         echo ""
@@ -382,4 +397,116 @@ for peer in $(bashio::config 'peers|keys'); do
     # Store client name for the status API based on public key
     filename=$(sha1sum <<< "${peer_public_key}" | awk '{ print $1 }')
     echo -n "${name}" > "/var/lib/wireguard/${filename}"
+
+    web_peers+=("${name}")
 done
+
+# Build the ingress page with the client configurations
+www="/var/www/wireguard"
+rm -f -r "${www}"
+mkdir -p "${www}" || bashio::exit.nok "Could not create ingress web folder"
+
+function html() {
+    sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'
+}
+
+{
+    cat << 'HTML'
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WireGuard</title>
+<style>
+:root {
+  --bg: #fafafa; --card: #ffffff; --text: #212121; --muted: #616161;
+  --border: #e0e0e0; --accent: #03a9f4; --accent-text: #ffffff;
+  --code: #f5f5f5; --warn-bg: #fff8e1; --warn-border: #ffb300;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111111; --card: #1c1c1c; --text: #e1e1e1; --muted: #9e9e9e;
+    --border: #333333; --accent: #03a9f4; --accent-text: #ffffff;
+    --code: #262626; --warn-bg: #2d2610; --warn-border: #ffb300;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+  font: 14px/1.5 -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+}
+main { max-width: 760px; margin: 0 auto; }
+h1 { font-size: 22px; margin: 8px 0 16px; }
+h2 { font-size: 16px; margin: 0 0 12px; }
+section {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; margin-bottom: 16px;
+}
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+dt { color: var(--muted); }
+dd { margin: 0; overflow-wrap: anywhere; font-family: ui-monospace, monospace; }
+.button {
+  display: inline-block; background: var(--accent); color: var(--accent-text);
+  text-decoration: none; padding: 8px 14px; border-radius: 8px; font-weight: 600;
+  margin: 12px 0 4px;
+}
+details { margin-top: 8px; }
+summary { cursor: pointer; color: var(--muted); }
+pre {
+  background: var(--code); padding: 12px; border-radius: 8px;
+  overflow-x: auto; font-size: 12px; margin: 8px 0 0;
+}
+img.qr { width: 220px; max-width: 100%; background: #ffffff; padding: 8px; border-radius: 8px; margin-top: 8px; }
+ol { padding-left: 20px; margin: 0; }
+li { margin-bottom: 6px; }
+.warn {
+  background: var(--warn-bg); border-left: 4px solid var(--warn-border);
+  padding: 8px 12px; border-radius: 4px; margin: 8px 0;
+}
+code { font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<main>
+<h1>WireGuard</h1>
+HTML
+
+    echo "<section><h2>서버</h2><dl>"
+    echo "<dt>Endpoint</dt><dd>$(html <<< "${host}:${port:-51820}")</dd>"
+    echo "<dt>공개키</dt><dd>$(html <<< "${server_public_key}")</dd>"
+    for rule in "${redirect_info[@]}"; do
+        echo "<dt>리다이렉트</dt><dd>$(html <<< "${rule}")</dd>"
+    done
+    echo "</dl></section>"
+
+    for name in "${web_peers[@]}"; do
+        cp "/ssl/wireguard/${name}/client.conf" "${www}/${name}.conf"
+        cp "/ssl/wireguard/${name}/qrcode.png" "${www}/${name}.png"
+        echo "<section><h2>$(html <<< "${name}")</h2>"
+        echo "<a class=\"button\" href=\"${name}.conf\" download=\"${name}.conf\">${name}.conf 다운로드</a>"
+        echo "<details><summary>설정 내용 보기</summary><pre>"
+        html < "${www}/${name}.conf"
+        echo "</pre></details>"
+        echo "<details><summary>QR 코드</summary>"
+        echo "<img class=\"qr\" src=\"${name}.png\" alt=\"${name} QR\"></details>"
+        echo "</section>"
+    done
+
+    cat << 'HTML'
+<section>
+<h2>ipTIME 공유기에 등록하기</h2>
+<ol>
+<li>공유기 관리 화면에서 <b>관리도구 › VPN 설정 › WireGuard 클라이언트</b>로 이동해 <b>추가(+)</b>를 누릅니다.</li>
+<li><b>[설정 가져오기]</b>를 눌러 위에서 받은 <code>.conf</code> 파일을 올립니다.</li>
+<li>이름을 입력하고 클라이언트는 <b>실행</b>으로 선택합니다.
+<div class="warn"><b>[모든 트래픽이 이 VPN을 경유하도록 규칙 생성]</b>은 반드시 <b>체크하지 마세요.</b> 체크하면 모든 단말의 트래픽이 Home Assistant를 거치게 됩니다.</div></li>
+<li><b>VPN 설정 › 클라이언트 사용 관리</b>에서 <b>추가(+)</b>를 누르고, VPN은 방금 등록한 항목, 단말은 리다이렉트할 기기(예: LG 가전), 목적지는 <b>모든 목적지</b>, 네트워크 Lock은 <b>끄기</b>로 설정합니다.</li>
+<li>해당 기기를 재부팅하거나 Wi-Fi 연결을 끊었다 다시 연결해 새 경로로 접속하게 합니다.</li>
+</ol>
+</section>
+</main>
+</body>
+</html>
+HTML
+} > "${www}/index.html"

@@ -1,0 +1,9 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# Home Assistant Community App: WireGuard
+# Serves the ingress page with the generated client configurations
+# ==============================================================================
+bashio::log.info "Starting ingress web server..."
+exec busybox-extras httpd -f -p "$(bashio::app.ingress_port)" \
+    -h /var/www/wireguard -c /etc/wireguard-ingress/httpd.conf
