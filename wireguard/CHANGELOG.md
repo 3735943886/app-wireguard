@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.2
+
+- Mention ipTIME in the app description, so it shows up when searching
+- Point the app URL to this fork
+
 ## 0.0.1
 
 First release of the ipTIME redirect fork of the WireGuard app.
