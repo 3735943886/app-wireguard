@@ -48,7 +48,7 @@ Follow the following steps for installation & a quick start:
 1. Save the configuration.
 1. Start the "WireGuard" app
 1. Check the logs of the "WireGuard" app to see if everything went well.
-1. Forward port `51820` (UDP!) in your router to your Home Assistant instance.
+1. Forward port `51830` (UDP!) in your router to your Home Assistant instance.
 1. Download/Open the file `/ssl/wireguard/myphone/qrcode.png` stored on your
    Home Assistant instance, e.g., using Samba, Visual Studio Code or the
    Configurator app.
@@ -107,6 +107,9 @@ This configuration option is the hostname that your clients will use to connect
 to your WireGuard app. The `host` is mainly used to generate client
 configurations and SHOULD NOT contain a port. If you want to change the port,
 use the "Network" section of the app configuration.
+
+The port defaults to `51830`, so it does not clash with the original
+WireGuard app (`51820`) when both are installed.
 
 When left empty, the LAN IPv4 address of your Home Assistant host is used,
 which is fine for clients on your local network (like a router).
@@ -351,6 +354,17 @@ is sent to `to_host:to_port` instead.
 - `to_host`: Where to send it. Defaults to the LAN IPv4 address of your
   Home Assistant host.
 - `to_port`: The port to send it to. Defaults to `port`.
+
+By default, `443` and `8883` are redirected to the same ports on Home
+Assistant. Change `to_port` when rusthinq listens on another port, e.g.:
+
+```yaml
+redirects:
+  - port: 443
+    to_port: 8443
+  - port: 8883
+    to_port: 18883
+```
 
 The rules are added on top of `server.post_up`/`server.post_down`, so they
 also work with custom PostUp/PostDown commands.

@@ -76,6 +76,9 @@ else
         "Could not detect the LAN address of this host, please set server.host"
 fi
 
+# Port on the host clients connect to
+port=$(bashio::app.port "51820/udp")
+
 # Start creation of configuration
 echo "[Interface]" > "${config}"
 
@@ -270,7 +273,6 @@ for peer in $(bashio::config 'peers|keys'); do
     config_dir="/ssl/wireguard/${name}"
     endpoint=$(bashio::config "peers[${peer}].endpoint")
     fwmark=$(bashio::config "peers[${peer}].fwmark")
-    port=$(bashio::app.port "51820/udp")
     pre_shared_key=$(bashio::config "peers[${peer}].pre_shared_key")
 
     # Create directory for storing client configuration
@@ -473,7 +475,7 @@ code { font-family: ui-monospace, monospace; }
 HTML
 
     echo "<section><h2>서버</h2><dl>"
-    echo "<dt>Endpoint</dt><dd>$(html <<< "${host}:${port:-51820}")</dd>"
+    echo "<dt>Endpoint</dt><dd>$(html <<< "${host}:${port}")</dd>"
     echo "<dt>공개키</dt><dd>$(html <<< "${server_public_key}")</dd>"
     for rule in "${redirect_info[@]}"; do
         echo "<dt>리다이렉트</dt><dd>$(html <<< "${rule}")</dd>"
