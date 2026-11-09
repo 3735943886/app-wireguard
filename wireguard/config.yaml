@@ -11,7 +11,7 @@ init: false
 ingress: true
 ingress_port: 8099
 panel_icon: mdi:vpn
-panel_title: ipTIME redirect (WireGuard)
+panel_title: ipTIME redirect
 ports:
   80/tcp: null
   51820/udp: 51830
