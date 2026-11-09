@@ -1,134 +1,41 @@
-# Home Assistant Community App: WireGuard
+# ipTIME redirect (WireGuard)
 
-[![GitHub Release][releases-shield]][releases]
-![Project Stage][project-stage-shield]
-[![License][license-shield]](LICENSE.md)
+ipTIME 공유기에 연결된 특정 기기(예: LG ThinQ 가전)의 트래픽을 WireGuard
+터널로 Home Assistant에 끌어와, 원하는 포트로 리다이렉트(DNAT)하는
+Home Assistant 앱입니다.
 
-[![Github Actions][github-actions-shield]][github-actions]
-![Project Maintenance][maintenance-shield]
-[![GitHub Activity][commits-shield]][commits]
+ipTIME 공유기는 관리 화면에서 외부로 나가는 트래픽을 DNAT할 수 없습니다.
+그 대신 **WireGuard 클라이언트**와 **클라이언트 사용 관리** 기능으로 원하는
+기기의 트래픽만 터널로 보낼 수 있습니다. 이 앱은 그 터널의 서버가 되어, 받은
+트래픽을 Home Assistant의 [rusthinq][rusthinq] 같은 서비스로 넘겨줍니다.
 
-[![Sponsor Frenck via GitHub Sponsors][github-sponsors-shield]][github-sponsors]
+```text
+LG 가전 ──▶ ipTIME ══WireGuard══▶ 이 앱 ──DNAT──▶ Home Assistant (rusthinq)
+            (기기 MAC 기준 정책)        443  → HA:443
+                                        8883 → HA:8883
+```
 
-[![Support Frenck on Patreon][patreon-shield]][patreon]
+## 특징
 
-WireGuard: fast, modern, secure VPN tunnel.
+- 리다이렉트할 포트와 대상 포트를 설정에서 바로 지정 (기본값 `443`, `8883`)
+- Home Assistant의 LAN 주소를 자동으로 찾아 서버 주소와 리다이렉트 대상으로 사용
+- 사이드바 웹 UI에서 ipTIME에 올릴 `.conf` 파일을 바로 다운로드
+- 기본 포트 `51830/udp`: 원본 WireGuard 앱과 함께 설치해도 충돌하지 않음
 
-## About
+## 설치
 
-[WireGuard®][wireguard] is an extremely simple yet fast and modern VPN that
-utilizes state-of-the-art cryptography. It aims to be faster, simpler, leaner,
-and more useful than IPsec, while avoiding the massive headache.
+1. Home Assistant에서 **설정 → 앱 → 앱 스토어 → ⋮ → 저장소**로 이동합니다.
+1. `https://github.com/3735943886/app-wireguard`를 추가합니다.
+1. 목록에 나타난 **ipTIME redirect (WireGuard)**를 설치합니다. Home Assistant가
+   직접 이미지를 빌드하므로 처음 설치는 몇 분 걸립니다.
 
-It intends to be considerably more performant than OpenVPN. WireGuard is
-designed as a general-purpose VPN for running on embedded interfaces and
-supercomputers alike, fit for many different circumstances.
+설정과 ipTIME 등록 방법은 [문서](wireguard/DOCS.md)를 참고하세요.
 
-Initially released for the Linux kernel, it is now cross-platform (Windows,
-macOS, BSD, iOS, Android) and widely deployable,
-including via an Hass.io app!
+## 출처와 라이선스
 
-WireGuard is currently under heavy development, but already it might be
-regarded as the most secure, easiest to use, and the simplest VPN solution
-in the industry.
+이 앱은 Franck Nijhof의 [Home Assistant Community App: WireGuard][upstream]를
+포크해 ipTIME 용도에 맞게 고친 것입니다. 원본과 같이 [MIT 라이선스](LICENSE.md)를
+따릅니다. WireGuard®는 Jason A. Donenfeld의 등록 상표입니다.
 
-[:books: Read the full app documentation][docs]
-
-## This app is a WireGuard server, not a client
-
-This app runs a WireGuard **server** on your Home Assistant instance. Your
-phone, laptop, and other devices are the peers: they connect **to** Home
-Assistant. The app generates their client configurations and QR codes for you,
-which is what the `peers` option is for.
-
-The other direction is not supported. There is no option to have Home Assistant
-join an existing WireGuard network as a client, for example one hosted on a VPS,
-running on your router, or run by a commercial VPN provider. If that is what you
-are looking for, this is not the app you need.
-
-## Support
-
-Got questions?
-
-You have several options to get them answered:
-
-- The [Home Assistant Community Apps Discord chat server][discord] for app
-  support and feature requests.
-- The [Home Assistant Discord chat server][discord-ha] for general Home
-  Assistant discussions and questions.
-- The Home Assistant [Community Forum][forum].
-- Join the [Reddit subreddit][reddit] in [/r/homeassistant][reddit]
-
-You could also [open an issue here][issue] GitHub.
-
-## Contributing
-
-This is an active open-source project. We are always open to people who want to
-use the code or contribute to it.
-
-We have set up a separate document containing our
-[contribution guidelines](.github/CONTRIBUTING.md).
-
-Thank you for being involved! :heart_eyes:
-
-## Authors & contributors
-
-The original setup of this repository is by [Franck Nijhof][frenck].
-
-For a full list of all authors and contributors,
-check [the contributor's page][contributors].
-
-## We have got some Home Assistant apps for you
-
-Want some more functionality to your Home Assistant instance?
-
-We have created multiple apps for Home Assistant. For a full list, check out
-our [GitHub Repository][repository].
-
-## License
-
-MIT License
-
-Copyright (c) 2019-2026 Franck Nijhof
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-[commits-shield]: https://img.shields.io/github/commit-activity/y/hassio-addons/app-wireguard.svg
-[commits]: https://github.com/hassio-addons/app-wireguard/commits/main
-[contributors]: https://github.com/hassio-addons/app-wireguard/graphs/contributors
-[discord-ha]: https://discord.gg/c5DvZ4e
-[discord]: https://discord.me/hassioaddons
-[docs]: https://github.com/hassio-addons/app-wireguard/blob/main/wireguard/DOCS.md
-[forum]: https://community.home-assistant.io/t/home-assistant-community-add-on-wireguard/134662?u=frenck
-[frenck]: https://github.com/frenck
-[github-actions-shield]: https://github.com/hassio-addons/app-wireguard/workflows/CI/badge.svg
-[github-actions]: https://github.com/hassio-addons/app-wireguard/actions
-[github-sponsors-shield]: https://frenck.dev/wp-content/uploads/2019/12/github_sponsor.png
-[github-sponsors]: https://github.com/sponsors/frenck
-[issue]: https://github.com/hassio-addons/app-wireguard/issues
-[license-shield]: https://img.shields.io/github/license/hassio-addons/app-wireguard.svg
-[maintenance-shield]: https://img.shields.io/maintenance/yes/2026.svg
-[patreon-shield]: https://frenck.dev/wp-content/uploads/2019/12/patreon.png
-[patreon]: https://www.patreon.com/frenck
-[project-stage-shield]: https://img.shields.io/badge/project%20stage-experimental-yellow.svg
-[reddit]: https://reddit.com/r/homeassistant
-[releases-shield]: https://img.shields.io/github/release/hassio-addons/app-wireguard.svg
-[releases]: https://github.com/hassio-addons/app-wireguard/releases
-[repository]: https://github.com/hassio-addons/repository
-[wireguard]: https://www.wireguard.com
+[rusthinq]: https://github.com/3735943886/rusthinq-local
+[upstream]: https://github.com/hassio-addons/app-wireguard

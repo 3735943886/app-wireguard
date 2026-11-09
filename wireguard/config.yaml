@@ -1,6 +1,6 @@
 ---
 name: ipTIME redirect (WireGuard)
-version: 0.0.2
+version: 0.0.3
 slug: wireguard
 description: Redirect ipTIME router traffic over WireGuard (e.g. LG ThinQ to rusthinq)
 url: https://github.com/3735943886/app-wireguard

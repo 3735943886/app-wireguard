@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.3
+
+- Rewrite the README and documentation for ipTIME (Korean)
+
 ## 0.0.2
 
 - Mention ipTIME in the app description, so it shows up when searching

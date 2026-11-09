@@ -1,362 +1,115 @@
-# Home Assistant Community App: WireGuard
+# ipTIME redirect (WireGuard)
 
-[WireGuard®][wireguard] is an extremely simple yet fast and modern VPN that
-utilizes state-of-the-art cryptography. It aims to be faster, simpler, leaner,
-and more useful than IPsec, while avoiding the massive headache.
+ipTIME 공유기에 연결된 특정 기기의 트래픽을 WireGuard 터널로 받아, 지정한
+포트를 Home Assistant(또는 다른 주소)로 리다이렉트(DNAT)하는 앱입니다.
+LG ThinQ 가전을 [rusthinq][rusthinq]에 연결하는 용도를 기본으로 합니다.
 
-It intends to be considerably more performant than OpenVPN. WireGuard is
-designed as a general-purpose VPN for running on embedded interfaces and
-supercomputers alike, fit for many different circumstances.
+## 동작 방식
 
-Initially released for the Linux kernel, it is now cross-platform (Windows,
-macOS, BSD, iOS, Android) and widely deployable,
-including via an Hass.io app!
+```text
+LG 가전 ──▶ ipTIME ══WireGuard══▶ 이 앱 ──DNAT──▶ Home Assistant (rusthinq)
+            (기기 MAC 기준 정책)        443  → HA:443
+                                        8883 → HA:8883
+```
 
-WireGuard is currently under heavy development, but already it might be
-regarded as the most secure, easiest to use, and the simplest VPN solution
-in the industry.
+1. ipTIME의 **WireGuard 클라이언트**가 이 앱에 터널을 연결합니다.
+1. **클라이언트 사용 관리**에서 지정한 기기(LG 가전)의 트래픽만 터널로 들어옵니다.
+1. 앱이 터널로 들어온 트래픽 중 `redirects`에 지정한 포트를 대상 주소로
+   DNAT합니다. 나머지 트래픽은 Home Assistant 호스트를 거쳐 그대로 인터넷으로
+   나갑니다.
 
-## This app is a WireGuard server, not a client
+기기 입장에서는 원래 서버와 통신하는 것처럼 보이므로, 기기 설정이나 DNS를
+바꿀 필요가 없습니다.
 
-This app runs a WireGuard **server** on your Home Assistant instance. Your
-phone, laptop, and other devices are the peers: they connect **to** Home
-Assistant. The app generates their client configurations and QR codes for you,
-which is what the `peers` option is for.
+## 빠른 시작
 
-The other direction is not supported. There is no option to have Home Assistant
-join an existing WireGuard network as a client, for example one hosted on a VPS,
-running on your router, or run by a commercial VPN provider. If that is what you
-are looking for, this is not the app you need.
+### 1. 앱 설정
 
-## Installation
-
-WireGuard is pretty simple, however, can be quite complex for user that isn't
-familiar with all terminology used. The app takes care of a lot of things
-for you (if you want).
-
-Follow the following steps for installation & a quick start:
-
-1. Click the Home Assistant My button below to open the app on your Home
-   Assistant instance.
-
-   [![Open this app in your Home Assistant instance.][addon-badge]][addon]
-
-1. Click the "Install" button to install the app.
-1. Set the `host` configuration option to your Home Assistant (external)
-   address, e.g., `myautomatedhome.duckdns.org`.
-1. Change the name of the peer to something useful, e.g., `myphone`.
-1. Save the configuration.
-1. Start the "WireGuard" app
-1. Check the logs of the "WireGuard" app to see if everything went well.
-1. Forward port `51830` (UDP!) in your router to your Home Assistant instance.
-1. Download/Open the file `/ssl/wireguard/myphone/qrcode.png` stored on your
-   Home Assistant instance, e.g., using Samba, Visual Studio Code or the
-   Configurator app.
-1. Install the WireGuard app on your phone.
-1. Add a new WireGuard connection to your phone, by scanning the QR code.
-1. Connect!
-
-## Configuration
-
-Now, for starters, don't get scared by the number of options and difficult
-terms this app provides. WireGuard can be a complex piece of software,
-but the app only has a few, simple, required settings. All the rest is
-handled by the app. However, If you would like to set up a more complex
-configuration, the app would allow that, too.
-
-If you are familiar with WireGuard, please note the following:
-The configuration of WireGuard looks very similar to all terms used in the
-WireGuard configuration. There is, however, one big difference: The
-app is able to generate configurations for the app, but also for the
-peers (clients).
-
-**Note**: _Remember to restart the app when the configuration is changed._
-
-A little more extensive example app configuration:
+대부분 기본값 그대로 쓰면 됩니다. rusthinq가 다른 포트에서 동작한다면
+`redirects`의 `to_port`만 바꿉니다.
 
 ```yaml
-log_level: info
 server:
-  host: myautomatedhome.duckdns.org
   addresses:
-    - 10.10.10.1
-  dns:
-    - 1.1.1.1
-    - 1.0.0.1
+    - 172.27.66.1
+  dns: []
 peers:
-  - name: frenck
+  - name: iptime
     addresses:
-      - 10.10.10.2
+      - 172.27.66.2
     allowed_ips: []
     client_allowed_ips: []
-  - name: ninja
-    public_key: QNLXV8lrsPnKOd011DO8g5DWyad6iHJDSVOD6yOqjiE=
-    addresses:
-      - 10.10.10.3
-    allowed_ips: []
-    client_allowed_ips:
-      - 10.10.10.0/24
-      - 192.168.1.0/24
+    client_dns: "off"
+redirects:
+  - port: 443
+    to_port: 443 # rusthinq HTTPS 포트 (443이 사용 중이면 8443 등)
+  - port: 8883
+    to_port: 8883 # rusthinq MQTT 포트
 ```
 
-**Note**: _This is just an example, don't copy and paste it! Create your own!_
+앱을 시작하면 로그에 리다이렉트 내역이 표시됩니다.
 
-### Option: `server.host` _(optional)_
-
-This configuration option is the hostname that your clients will use to connect
-to your WireGuard app. The `host` is mainly used to generate client
-configurations and SHOULD NOT contain a port. If you want to change the port,
-use the "Network" section of the app configuration.
-
-The port defaults to `51830`, so it does not clash with the original
-WireGuard app (`51820`) when both are installed.
-
-When left empty, the LAN IPv4 address of your Home Assistant host is used,
-which is fine for clients on your local network (like a router).
-
-Example: `myautomatedhome.duckdns.org`, for local testing `homeassistant.local`
-will actually work.
-
-DO NOT attempt to use a URL such as a Nabu Casa endpoint, the entry needs to be
-either a DNS entry or IP address that is accessible by the clients.
-
-### Option: `server.addresses`
-
-A list of IP (IPv4 or IPv6) addresses (optionally with CIDR masks) to be
-assigned to the server/app interface.
-
-It is strongly advised to create/use a separate IP address space from your
-home network, e.g., if your home network uses `192.168.1.x` then DO NOT use
-that for the app.
-
-### Option: `server.dns` _(optional)_
-
-A list of DNS servers used by the app and the configuration generated for
-the clients. This configuration option is optional, and if no DNS servers are
-set, it will use the built-in DNS server from Hass.io.
-
-**If you are running the [AdGuard][adguard] app,
-you can add `172.30.32.1` as a DNS IP address in the list.** This will cause your
-clients to use those. What this does, it effectively making your clients
-to have ad-filtering (e.g., your mobile phone), while not at home.
-
-### Option: `server.private_key` _(optional)_
-
-Allows you to provide your own base64 private key generated by `wg genkey`.
-This option supports the use of `!secret`. If you don't supply one,
-the app will generate one for you and store it in:
-`/ssl/wireguard/private_key`.
-
-### Option: `server.public_key` _(optional)_
-
-Allows you to provide your own a base64 public key calculated by `wg pubkey`
-from a private key. This option supports the use of `!secret`.
-
-If you don't supply one, the app will calculate one based on the private
-key that was supplied via the `server.private_key` or, in case no private key
-was supplied, calculate it from the generated private key.
-
-### Option: `server.fwmark` _(optional)_
-
-A 32-bit fwmark for outgoing packets. May be specified in hexadecimal by
-prepending "0x". If you don't know what this is, then you probably don't
-need it.
-
-### Option: `server.table` _(optional)_
-
-Controls the routing table to which routes are added. Setting it to `off`
-disables the creation of routes altogether. When not provided, the app
-adds routes to the default table and enables special handling of default routes.
-
-### Option: `server.pre_up` _(optional)_
-
-Allows you to run commands before WireGuard is started.
-
-### Option: `server.pre_down` _(optional)_
-
-Allows you to run commands before WireGuard is stopped.
-
-### Option: `server.post_up` _(optional)_
-
-Allows you to run commands after WireGuard has been started. This is useful
-for modifying things like routing. If not provided, the app will by default
-route all traffic coming in from the VPN through your home network.
-
-If you like to disable that, setting this option to `"off"`,
-will disable that behavior.
-
-By default it executes the following:
-
-```bash
-iptables -A FORWARD -i %i -j ACCEPT
-iptables -A FORWARD -o %i -j ACCEPT
-iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+```text
+Redirecting tcp/443 from the tunnel to 192.168.0.50:443
+Redirecting tcp/8883 from the tunnel to 192.168.0.50:8883
 ```
 
-### Option: `server.post_down` _(optional)_
+### 2. 설정 파일 받기
 
-Allows you to run commands after WireGuard has been stopped. This is useful
-for modifying things like routing. If not provided, the app will by default
-remove the default rules created by the `post_up` defaults.
+앱 정보 화면의 **웹 UI 열기**(또는 "사이드바에 표시"를 켠 뒤 사이드바의
+**ipTIME redirect**)를 누르고, `iptime.conf 다운로드`를 누릅니다.
 
-If you like to disable that, setting this option to `"off"`,
-will disable that behavior.
+웹 UI는 Home Assistant에 로그인한 사용자만 볼 수 있습니다. 설정 파일에는
+개인키가 들어 있으니 다른 곳에 공유하지 마세요.
 
-By default it executes the following:
+### 3. ipTIME에 WireGuard 클라이언트 등록
 
-```bash
-iptables -D FORWARD -i %i -j ACCEPT
-iptables -D FORWARD -o %i -j ACCEPT
-iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
-```
+1. ipTIME 관리 화면(보통 `http://192.168.0.1`)에 로그인합니다.
+1. **관리도구 › VPN 설정 › WireGuard 클라이언트**에서 **추가(+)**를 누릅니다.
+1. **[설정 가져오기]**를 눌러 받은 `iptime.conf`를 올립니다.
+1. 이름을 입력하고, 클라이언트는 **실행**을 선택합니다.
+1. **[모든 트래픽이 이 VPN을 경유하도록 규칙 생성]은 체크하지 마세요.**
+   체크하면 공유기에 연결된 모든 기기의 트래픽이 Home Assistant를 거치게
+   됩니다.
+1. **[추가]**를 누릅니다.
 
-### Option: `server.mtu` _(optional)_
+### 4. 리다이렉트할 기기 지정
 
-The MTU is automatically determined from the endpoint addresses or the
-system default route, which is usually a sane choice.
+1. **관리도구 › VPN 설정 › 클라이언트 사용 관리**에서 **추가(+)**를 누릅니다.
+1. 다음과 같이 설정하고 **[추가]**를 누릅니다.
+   - 이름: 아무 이름 (예: `LG 가전`)
+   - VPN: 3단계에서 등록한 항목
+   - 단말: 리다이렉트할 기기 (LG 가전들)
+   - 목적지: **모든 목적지**
+   - 네트워크 Lock: **끄기**
 
-However, to manually specify an MTU to override this automatic discovery,
-this value may be specified explicitly.
+### 5. 기기 다시 연결
 
-### Option: `peers.name`
+기기는 이미 맺어 둔 연결을 계속 쓰기 때문에, 기기를 재부팅하거나 ipTIME의
+클라이언트 관리 화면에서 Wi-Fi 연결을 끊었다가 다시 연결합니다. 이후 새로
+맺는 연결부터 터널을 거쳐 리다이렉트됩니다.
 
-This is an identifier for you. It helps you to know what this peer is, e.g.,
-`myphone`, `mylaptop`, `ninja`.
+### 6. 확인
 
-This name is also used for creating the directory in `/ssl/wireguard` where
-the generated client configuration and QR codes are stored. Therefore, a name
-has a maximum of 32 characters, can only contain A-Z (or a-z) and 0-9.
-Names may contain a hyphen (-) but must not start or end with one.
+- ipTIME의 WireGuard 클라이언트 목록에서 연결 상태를 확인합니다.
+- 앱 로그에서 시작 30초 뒤 출력되는 `wg show` 결과에 `latest handshake`가
+  있으면 터널이 연결된 것입니다.
+- rusthinq를 쓰는 경우, 기기가 접속하면 Home Assistant에 기기와 엔티티가
+  자동으로 생깁니다.
 
-### Option: `peers.addresses`
+## 설정 옵션
 
-A list of IP (IPv4 or IPv6) addresses (optionally with CIDR masks) to be
-assigned to the peer.
+### `redirects`
 
-This is used in the client configuration, but also for used by the app to
-set the allowed IPs (unless overriden by the `peers.allowed_ips` option.)
+터널로 들어온 트래픽 중 리다이렉트할 포트 목록입니다. 원래 목적지와 상관없이
+`port`로 가는 연결을 `to_host:to_port`로 보냅니다.
 
-### Option: `peers.private_key` _(optional)_
-
-Allows you to provide your own base64 private key generated by `wg genkey` for
-the peer. This option supports the use of `!secret`.
-
-Technically, the app does not need this, however, since the app can
-generate client configurations, it can be helpful.
-
-If no private key and no public key is provided, the app will generate one
-for you and store it in: `/ssl/wireguard/<peer.name>/`.
-
-**Private keys, in general, should only be known by client, while this app
-supports setting or generating one for your client is helpful and easy, it
-isn't the best security practice. The best practice is to provide just the
-`peers.public_key` option below, the app will honor that.**
-
-### Option: `peers.public_key` _(optional, but recommended!)_
-
-Allows you to provide your own a base64 public key calculated by `wg pubkey`
-from a private key. This option supports the use of `!secret`.
-
-If you don't supply one, the app will calculate one based on the private
-key that was supplied via the `peer.private_key` or, in case no private key
-was supplied, calculated it from the generated private key for this peer.
-
-**While this app can generate public/private keypairs, from best security
-practice perspective, it is strongly advised to manually provide a public key
-for each of your peers. In that case, the app will not generate or configure
-a private key by itself.**
-
-### Option: `peers.allowed_ips` _(optional)_
-
-**This configuration only valid for the app/server end and does not
-affect client configurations!**
-
-A list of IPs (IPv4 or IPv6) addresses (optionally with CIDR masks) from which
-incoming traffic for this peer is allowed and to which outgoing traffic for
-this peer is directed.
-
-If there are no IP addresses configured, the app will use the addresses
-listed in `peers.addresses`.
-
-The catch-all `0.0.0.0/0` may be specified for matching all IPv4 addresses,
-and `::/0` may be specified for matching all IPv6 addresses.
-
-### Option: `peers.client_allowed_ips` _(optional)_
-
-**This configuration only valid for the peer end/client configuration and does
-not affect the server/app!**
-
-A list of IPs (IPv4 or IPv6) addresses (optionally with CIDR masks) from which
-incoming traffic from the server is allowed and to which outgoing traffic for
-this peer is directed.
-
-The catch-all `0.0.0.0/0` may be specified for matching all IPv4 addresses,
-and `::/0` may be specified for matching all IPv6 addresses.
-
-If not configured, the app will use `0.0.0.0/0` in the generated client
-configuration, routing all traffic on your client through the VPN tunnel.
-
-### Option: `peers.client_dns` _(optional)_
-
-DNS servers to put in the generated client configuration of this peer,
-separated by commas. Defaults to `server.dns`, or the DNS of Home Assistant
-when that is empty. Set it to `off` to leave DNS out of the client
-configuration, so the client keeps using its own DNS servers.
-
-### Option: `peers.persistent_keep_alive` _(optional)_
-
-A seconds interval, between 1 and 65535 inclusive, of how often to send an
-authenticated empty packet to the peer for the purpose of keeping a stateful
-firewall or NAT mapping valid persistently.
-
-For example, if the interface very rarely sends traffic, but it might at
-anytime receive traffic from a peer, and it is behind NAT, the interface might
-benefit from having a persistent keepalive interval of 25 seconds.
-
-By default or when unspecified, this option is set to 25 seconds. This is
-different from the WireGuard default, since the use case for this app is
-most likely to be installed in home setups behind a NAT.
-
-If set to "off", this option is disabled.
-
-### Option: `peers.endpoint` _(optional)_
-
-An endpoint IP or hostname, followed by a colon, and then a port number. This
-is used by the app/server to connect to its peer.
-
-This is completely optional as the endpoint will be updated automatically
-to the most recent source IP address and port of correctly authenticated
-packets from the peer/client.
-
-### Option: `peers.pre_shared_key` _(optional)_
-
-A base64 preshared key generated by `wg genpsk`. This option adds an additional
-layer of symmetric-key cryptography to be mixed into the already existing
-public-key cryptography, for post-quantum resistance.
-
-### Option: `peers.fwmark` _(optional)_
-
-**This configuration only valid for the peer end/client configuration and does
-not affect the server/app!**
-
-A 32-bit fwmark for outgoing packets. May be specified in hexadecimal by
-prepending "0x". If you don't know what this is, then you probably don't
-need it.
-
-### Option: `redirects` _(optional)_
-
-A list of ports to redirect (DNAT) for traffic coming in through the tunnel.
-Any connection from a peer to the given port, regardless of its destination,
-is sent to `to_host:to_port` instead.
-
-- `port`: The destination port to intercept.
-- `protocol`: `tcp` (default) or `udp`.
-- `to_host`: Where to send it. Defaults to the LAN IPv4 address of your
-  Home Assistant host.
-- `to_port`: The port to send it to. Defaults to `port`.
-
-By default, `443` and `8883` are redirected to the same ports on Home
-Assistant. Change `to_port` when rusthinq listens on another port, e.g.:
+| 항목 | 설명 | 기본값 |
+| --- | --- | --- |
+| `port` | 가로챌 목적지 포트 | (필수) |
+| `protocol` | `tcp` 또는 `udp` | `tcp` |
+| `to_host` | 보낼 주소 | Home Assistant의 LAN 주소 |
+| `to_port` | 보낼 포트 | `port`와 같음 |
 
 ```yaml
 redirects:
@@ -366,284 +119,127 @@ redirects:
     to_port: 18883
 ```
 
-The rules are added on top of `server.post_up`/`server.post_down`, so they
-also work with custom PostUp/PostDown commands.
+### `server.host`
 
-### Option: `log_client_config` _(optional)_
+ipTIME이 접속할 이 앱의 주소입니다. 비워두면 Home Assistant의 LAN 주소를
+자동으로 사용합니다. ipTIME은 사설 IP 엔드포인트를 허용하므로 보통 비워두면
+됩니다. 포트는 넣지 말고, 바꾸려면 앱 설정의 "네트워크" 섹션을 사용합니다.
 
-When set to `true`, the generated client configuration of each peer is printed
-in the app log, so it can be copied without opening `/ssl/wireguard`.
-**The log then contains private keys**, so turn it off again when done.
+### `server.addresses`
 
-### Option: `log_level` _(optional)_
+터널 안에서 쓰는 서버 주소입니다. 기본값 `172.27.66.1`을 그대로 쓰면 되고,
+집 LAN 대역과 겹치지 않게만 하면 됩니다.
 
-The `log_level` option controls the level of log output by the app and can
-be changed to be more or less verbose, which might be useful when you are
-dealing with an unknown issue. Possible values are:
+### `server.dns`
 
-- `trace`: Show every detail, like all called internal functions.
-- `debug`: Shows detailed debug information.
-- `info`: Normal (usually) interesting events.
-- `warning`: Exceptional occurrences that are not errors.
-- `error`: Runtime errors that do not require immediate action.
-- `fatal`: Something went terribly wrong. App becomes unusable.
+서버 쪽 DNS입니다. 비워두면 Home Assistant의 DNS를 사용합니다.
 
-Please note that each level automatically includes log messages from a
-more severe level, e.g., `debug` also shows `info` messages. By default,
-the `log_level` is set to `info`, which is the recommended setting unless
-you are troubleshooting.
+### `peers`
 
-## Redirecting LG appliance traffic with an ipTIME router (rusthinq)
+터널에 접속할 클라이언트 목록입니다. ipTIME 하나면 기본값 `iptime` 하나로
+충분합니다.
 
-ipTIME routers cannot DNAT outbound traffic, but their WireGuard client can
-send traffic of selected devices (by MAC address) through a tunnel. Point it
-at this app and let the app redirect the appliances' connections to rusthinq
-running in Home Assistant:
+| 항목 | 설명 |
+| --- | --- |
+| `name` | 이름. 설정 파일 이름(`이름.conf`)으로도 쓰입니다. |
+| `addresses` | 터널 안에서 쓸 주소 (예: `172.27.66.2`) |
+| `allowed_ips` | 이 피어에서 받을 출발지 주소. 비워두면 `addresses`를 사용합니다. |
+| `client_allowed_ips` | 클라이언트가 터널로 보낼 대상. 비워두면 `0.0.0.0/0` |
+| `client_dns` | 클라이언트 설정에 넣을 DNS(쉼표로 구분). `off`면 넣지 않습니다. |
+| `private_key` / `public_key` | 직접 지정할 키. 비워두면 자동 생성합니다. |
+| `pre_shared_key` | 사전 공유 키(PSK) |
+| `persistent_keep_alive` | Keepalive 간격(초). 기본값 `25` |
 
-```yaml
-server:
-  addresses:
-    - 10.10.10.1
-  dns: []
-peers:
-  - name: iptime
-    addresses:
-      - 10.10.10.2
-    allowed_ips: []
-    client_allowed_ips:
-      - 0.0.0.0/0
-    client_dns: "off"
-redirects:
-  - port: 443
-    to_port: 443 # rusthinq HTTPS port, e.g. 8443 if 443 is taken
-  - port: 8883 # rusthinq MQTT port
+ipTIME에서는 `client_dns: "off"`를 권장합니다. 기기의 DNS 조회를 Home
+Assistant에 의존하지 않게 됩니다.
+
+### `log_client_config`
+
+`true`로 하면 각 피어의 클라이언트 설정을 로그에 출력합니다. 웹 UI를 쓸 수
+없을 때만 사용하세요. **로그에 개인키가 남으니** 확인 후 다시 끄세요.
+
+### 고급 옵션
+
+원본 WireGuard 앱의 옵션도 그대로 쓸 수 있습니다.
+
+- `server.interface`, `server.private_key`, `server.public_key`,
+  `server.fwmark`, `server.table`, `server.mtu`
+- `server.pre_up`, `server.pre_down`, `server.post_up`, `server.post_down`
+- `peers.endpoint`, `peers.fwmark`
+- `log_level`
+
+`server.post_up`/`server.post_down`을 직접 지정하면 기본 FORWARD와
+MASQUERADE 규칙이 빠집니다. 리다이렉트 응답이 돌아오려면 이 두 규칙이 꼭
+필요하니 직접 지정할 때 함께 넣으세요. `redirects` 규칙은 이와 상관없이
+따로 추가됩니다.
+
+## 포트
+
+| 포트 | 용도 |
+| --- | --- |
+| `51830/udp` | WireGuard. ipTIME이 이 포트로 접속합니다. 원본 WireGuard 앱(`51820`)과 겹치지 않게 기본값을 바꿨습니다. |
+| `80/tcp` | 피어 상태 API (기본값 비활성) |
+
+같은 LAN 안의 ipTIME이 접속하므로 포트 포워딩은 필요 없습니다.
+
+## 내부 동작
+
+앱은 `wg-quick`으로 터널을 올린 뒤 다음 iptables 규칙을 적용합니다.
+
+```text
+iptables -A FORWARD -i wg0 -j ACCEPT
+iptables -A FORWARD -o wg0 -j ACCEPT
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+iptables -t nat -A PREROUTING -i wg0 -p tcp --dport 443 -j DNAT --to-destination <HA_IP>:443
+iptables -t nat -A PREROUTING -i wg0 -p tcp --dport 8883 -j DNAT --to-destination <HA_IP>:8883
 ```
 
-1. Start the app and click **Open Web UI** (or WireGuard in the sidebar after
-   enabling "Show in sidebar"). Download `iptime.conf` there.
-2. On the ipTIME admin page, go to
-   `관리도구 › VPN 설정 › WireGuard 클라이언트`, click add (+) and upload
-   the file with `[설정 가져오기]`. Set the client to `실행`.
-   **Do not check** `[모든 트래픽이 이 VPN을 경유하도록 규칙 생성]`, or all
-   devices on your network will be routed through Home Assistant.
-3. Under `클라이언트 사용 관리`, add a rule for that VPN with the LG
-   appliances as devices (`단말`), destination `모든 목적지` and network lock
-   `끄기`.
-4. Reconnect the appliances (power-cycle, or disconnect them from Wi-Fi) so
-   they open new connections through the tunnel.
-
-## Finding generated client configurations
-
-The easiest way is the app's web UI (**Open Web UI**), which shows the
-server details and offers each peer's configuration file and QR code for
-download. It is only reachable through Home Assistant.
-
-All generated files are stored in `/ssl/wireguard`. This includes the
-client configurations generated by this app.
-
-Each peer/client will have its own folder, by the name specified in the
-app configuration. The app additionally generates an image for each
-client containing a QR code, to allow a quick an easy set up on, e.g., your
-mobile phone.
-
-## Using on a Generic Linux/Debian/Ubuntu-based Hass.io system
-
-The HassOS operating system for Hass.io by default has installed WireGuard
-support in its Linux kernel. However, if you run Hass.io on a generic Linux
-installation (e.g., based on Ubuntu or Debian), WireGuard support is not
-available by default.
-
-This will cause the app to throw a large warning during the start up.
-However, the app will work as advertised!
-
-When this happens, the app falls back on a standalone instance of WireGuard
-running inside the app itself. This method has drawbacks in terms of
-performance.
-
-In order to run WireGuard optimal, you should install WireGuard on your
-host system. The app will pick that up automatically on the next start.
-
-### Ubuntu
+앱이 멈추면 같은 규칙을 지웁니다. Home Assistant 터미널에서 다음 명령으로
+적용된 규칙을 볼 수 있습니다(슬러그 앞부분은 설치 환경마다 다릅니다).
 
 ```bash
-sudo add-apt-repository ppa:wireguard/wireguard
-sudo apt-get update
-sudo apt-get install wireguard
+docker exec addon_<저장소ID>_wireguard iptables -t nat -S
 ```
 
-### Debian
+생성된 파일은 `/ssl/wireguard`에 저장됩니다. 서버 개인키와 피어별 폴더
+(`client.conf`, `qrcode.png`, 개인키)가 들어 있습니다.
 
-```bash
-sudo echo "deb http://deb.debian.org/debian/ unstable main" > /etc/apt/sources.list.d/unstable.list
-sudo printf 'Package: *\nPin: release a=unstable\nPin-Priority: 90\n' > /etc/apt/preferences.d/limit-unstable
-sudo apt update
-sudo apt install wireguard
-```
+## 문제 해결
 
-### Fedora
+### ipTIME이 연결되지 않음
 
-```bash
-sudo dnf copr enable jdoss/wireguard
-sudo dnf install wireguard-dkms wireguard-tools
-```
+- 앱이 실행 중인지, 로그에 오류가 없는지 확인합니다.
+- 설정 파일의 `Endpoint`가 Home Assistant의 LAN 주소와 `51830` 포트인지
+  확인합니다. 다르면 `server.host`를 지정하고 설정 파일을 다시 받습니다.
+- 앱 설정에서 키나 주소를 바꿨다면 설정 파일을 다시 받아 ipTIME에 다시
+  등록합니다.
 
-### Other
+### 터널은 연결됐는데 기기가 리다이렉트되지 않음
 
-If you have a different operating system on which you run Hass.io on, please
-consult [WireGuard installation manual][wireguard-install]
+- 기기를 재부팅하거나 Wi-Fi를 다시 연결했는지 확인합니다. 기존 연결은
+  터널을 거치지 않습니다.
+- 클라이언트 사용 관리에 해당 기기가 지정되어 있는지 확인합니다.
+- `to_port`가 실제로 서비스가 동작하는 포트인지 확인합니다.
+- ipTIME이 기기 IP를 그대로 터널에 보내는 경우, 서버가 그 패킷을 버릴 수
+  있습니다. 이때는 `peers.allowed_ips`에 집 LAN 대역(예: `192.168.0.0/24`)을
+  추가해 보세요.
 
-## _"Missing WireGuard kernel module. Falling back to slow userspace implementation."_
+### "IP forwarding is disabled on the host system!"
 
-If you've seen this warning in the app logs files, please check the chapter
-above for more information.
+호스트에서 IP 포워딩이 꺼져 있으면 기본 규칙이 적용되지 않아 리다이렉트도
+동작하지 않습니다. Home Assistant OS에서는 보통 켜져 있습니다.
 
-## _"IP forwarding is disabled on the host system!"_
+## 업데이트
 
-IP forwarding is the ability for an operating system to accept incoming
-network packets on one interface, recognize that it is not meant for the
-system itself, but that it should be passed on to another network,
-and then forwards it accordingly.
+앱을 고치면 `config.yaml`의 버전을 올려 배포합니다. Home Assistant에서
+**앱 스토어 → ⋮ → 업데이트 확인**을 누르면 새 버전이 표시됩니다. 변경 내역은
+[CHANGELOG](CHANGELOG.md)를 참고하세요.
 
-Basically, it allows for data coming in from your VPN client will be routed to
-other places like your home network, or the internet.
+## 출처와 라이선스
 
-To enable IP forwarding, run the following commands directly on your **host**
-system (e.g., Ubuntu, Debian).
+Franck Nijhof의 [Home Assistant Community App: WireGuard][upstream]를 포크해
+ipTIME 용도에 맞게 고쳤습니다. 원본과 같이 MIT 라이선스를 따릅니다.
+WireGuard®는 Jason A. Donenfeld의 등록 상표입니다.
 
-```bash
-sudo sysctl -w net.ipv4.ip_forward=1
-echo "net.ipv4.ip_forward = 1" | sudo tee -a /etc/sysctl.conf
-sudo sysctl -p /etc/sysctl.conf
-```
-
-## Backups
-
-The WireGuard app can be backed up using Home Assistant Backups. There is one
-caveat to take into account: A partial backup of the app DOES NOT contain
-the generated client configurations, including their public/private keys
-(if those keys are generated by the app).
-
-Client configurations are stored in the `/ssl/wireguard` folder. If you
-use partial backups, please be sure to backup both the `ssl` folder and the
-app.
-
-## WireGuard status API
-
-This app provides a simple WireGuard status API. This API is not an
-official API, darn simple, and experimental, but does allow you to pull
-in data from the app into Home Assistant.
-
-With the use of the [Home Assistant RESTful][ha-rest] integration, one should
-be able to grab some interesting data from this app.
-
-Example:
-
-```yaml
-sensor:
-  - platform: rest
-    resource: http://a0d7b954-wireguard
-```
-
-At this moment, we do not have template or examples on how this could be
-used effectively with Home Assistant.
-If you have, sharing would be appreciated!
-
-## Troubleshooting
-
-- You can test if the tunnel works (when not using custom DNS servers), by
-  visiting <http://homeassistant:8123>. If a Home Assistant login page appears,
-  it is working!
-- Changes to peer/client configuration of this app, are not automatically
-  passed to your (already) configured clients. You have to change those
-  manually on your client device OR remove the WireGuard profile on the client
-  device and load the new client configuration (e.g., by scanning the QR
-  code).
-- If you are running the [AdGuard][adguard] app,
-  you can add `172.30.32.1` as a DNS IP address the list to use it.
-- If you run a protection service like CloudFlare on your `server.host`
-  address, please remember, that WireGuard will try to connect to CloudFlare
-  in that case (and not your Home). Please consider using your IP
-  address in the `server.host` field, or get an addition DNS record (e.g.,
-  using DuckDNS) that does point directly to your IP address.
-- If the initial connection from you client fails, this can be caused by
-  resolving issues of `server.host` on the client device. You can consider
-  solving this by editing the "Endpoint" setting on the client on the device
-  in the connection profile.
-- We had reports of people with connection issues on the client side, being
-  resolved by configuring/setting the `ListenPort = 51820` on the client
-  device in the connection profile (in `[Interface]` section).
-
-## Changelog & Releases
-
-This repository keeps a change log using [GitHub's releases][releases]
-functionality.
-
-Releases are based on [Semantic Versioning][semver], and use the format
-of `MAJOR.MINOR.PATCH`. In a nutshell, the version will be incremented
-based on the following:
-
-- `MAJOR`: Incompatible or major changes.
-- `MINOR`: Backwards-compatible new features and enhancements.
-- `PATCH`: Backwards-compatible bugfixes and package updates.
-
-## Support
-
-Got questions?
-
-You have several options to get them answered:
-
-- The [Home Assistant Community Apps Discord chat server][discord] for app
-  support and feature requests.
-- The [Home Assistant Discord chat server][discord-ha] for general Home
-  Assistant discussions and questions.
-- The Home Assistant [Community Forum][forum].
-- Join the [Reddit subreddit][reddit] in [/r/homeassistant][reddit]
-
-You could also [open an issue here][issue] GitHub.
-
-## Authors & contributors
-
-The original setup of this repository is by [Franck Nijhof][frenck].
-
-For a full list of all authors and contributors,
-check [the contributor's page][contributors].
-
-## License
-
-MIT License
-
-Copyright (c) 2019-2025 Franck Nijhof
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-[addon-badge]: https://my.home-assistant.io/badges/supervisor_addon.svg
-[addon]: https://my.home-assistant.io/redirect/supervisor_addon/?addon=a0d7b954_wireguard&repository_url=https%3A%2F%2Fgithub.com%2Fhassio-addons%2Frepository
-[adguard]: https://github.com/hassio-addons/app-adguard-home
-[contributors]: https://github.com/hassio-addons/app-wireguard/graphs/contributors
-[discord-ha]: https://discord.gg/c5DvZ4e
-[discord]: https://discord.me/hassioaddons
-[forum]: https://community.home-assistant.io/t/home-assistant-community-add-on-wireguard/134662?u=frenck
-[frenck]: https://github.com/frenck
-[ha-rest]: https://www.home-assistant.io/integrations/rest/
-[issue]: https://github.com/hassio-addons/app-wireguard/issues
-[reddit]: https://reddit.com/r/homeassistant
-[releases]: https://github.com/hassio-addons/app-wireguard/releases
-[semver]: https://semver.org/spec/v2.0.0.html
-[wireguard-install]: https://www.wireguard.com/install/
-[wireguard]: https://www.wireguard.com
+[rusthinq]: https://github.com/3735943886/rusthinq-local
+[upstream]: https://github.com/hassio-addons/app-wireguard
