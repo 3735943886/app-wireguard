@@ -1,5 +1,5 @@
 ---
-name: WireGuard
+name: ipTIME redirect (WireGuard)
 version: dev
 slug: wireguard
 description: Fast, modern, secure VPN tunnel
