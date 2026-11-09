@@ -221,8 +221,20 @@ docker exec addon_<저장소ID>_wireguard iptables -t nat -S
 - 클라이언트 사용 관리에 해당 기기가 지정되어 있는지 확인합니다.
 - `to_port`가 실제로 서비스가 동작하는 포트인지 확인합니다.
 - ipTIME이 기기 IP를 그대로 터널에 보내는 경우, 서버가 그 패킷을 버릴 수
-  있습니다. 이때는 `peers.allowed_ips`에 집 LAN 대역(예: `192.168.0.0/24`)을
-  추가해 보세요.
+  있습니다. 이때는 `peers.allowed_ips`에 터널 주소와 **기기 IP를 하나씩**
+  넣어 보세요. `allowed_ips`를 지정하면 터널 주소가 자동으로 들어가지 않으니
+  함께 넣어야 합니다.
+
+  ```yaml
+  allowed_ips:
+    - 172.27.66.2
+    - 192.168.0.21 # LG 가전 1
+    - 192.168.0.22 # LG 가전 2
+  ```
+
+  집 LAN 대역 전체(예: `192.168.0.0/24`)는 넣지 마세요. 그 대역으로 가는
+  경로가 터널로 잡혀서, Home Assistant로 보내야 할 리다이렉트 트래픽까지
+  터널로 되돌아갑니다.
 
 ### "IP forwarding is disabled on the host system!"
 

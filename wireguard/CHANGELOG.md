@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.4
+
+- Fix the `allowed_ips` troubleshooting advice: list appliance IPs one by one
+  instead of the whole LAN range
+
 ## 0.0.3
 
 - Rewrite the README and documentation for ipTIME (Korean)
