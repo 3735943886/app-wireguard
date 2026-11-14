@@ -14,7 +14,7 @@ RUN \
     \
     && apk add --no-cache \
         busybox-extras=1.37.0-r31 \
-        go=1.26.10-r0 \
+        go \
         iptables=1.8.13-r0 \
         libqrencode-tools=4.1.1-r3 \
         openresolv=3.17.4-r0 \
