@@ -26,7 +26,11 @@ LG 가전 ──▶ ipTIME ══WireGuard══▶ 이 앱 ──DNAT──▶ 
 ### 1. 앱 설정
 
 대부분 기본값 그대로 쓰면 됩니다. rusthinq가 다른 포트에서 동작한다면
-`redirects`의 `to_port`만 바꿉니다.
+`redirects`의 `to_port`만 바꿉니다. ThinQ1 가전이 있다면
+[ThinQ1 포트](#thinq1-가전)도 추가합니다.
+
+구성 탭의 화면에서 바로 고칠 수 있고, ⋮ → **YAML로 편집**으로 아래처럼
+한 번에 넣어도 됩니다.
 
 ```yaml
 server:
@@ -117,6 +121,28 @@ redirects:
     to_port: 8443
   - port: 8883
     to_port: 18883
+```
+
+항목 수에 제한이 없으니 필요한 만큼 추가하면 됩니다. 구성 탭에서 항목을
+추가하고 앱을 재시작하면 적용됩니다. 리다이렉트할 포트를 앱의 "네트워크"
+설정에서 따로 열 필요는 없습니다.
+
+#### ThinQ1 가전
+
+예전 ThinQ1 가전은 443, 8883 외에 `46030`, `47878` 포트도 사용합니다.
+ThinQ1 가전이 있다면 두 포트를 추가하세요. rusthinq에서 ThinQ1 포트를
+바꿨다면 `to_port`도 그에 맞춥니다.
+
+```yaml
+redirects:
+  - port: 443
+    to_port: 443
+  - port: 8883
+    to_port: 8883
+  - port: 46030 # ThinQ1 HTTPS
+    to_port: 46030
+  - port: 47878 # ThinQ1
+    to_port: 47878
 ```
 
 ### `server.host`

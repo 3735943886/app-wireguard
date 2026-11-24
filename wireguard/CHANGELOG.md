@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.5
+
+- Document adding redirects in the configuration UI and the ThinQ1 ports
+  (`46030`, `47878`)
+
 ## 0.0.4
 
 - Fix the `allowed_ips` troubleshooting advice: list appliance IPs one by one
