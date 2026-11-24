@@ -4,6 +4,8 @@
 
 - Document adding redirects in the configuration UI and the ThinQ1 ports
   (`46030`, `47878`)
+- Add a button to the README that adds this repository to Home Assistant
+- Update the base image to 21.0.11 and git to 2.54.1
 
 ## 0.0.4
 

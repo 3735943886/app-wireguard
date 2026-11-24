@@ -25,10 +25,16 @@ LG 가전 ──▶ ipTIME ══WireGuard══▶ 이 앱 ──DNAT──▶ 
 
 ## 설치
 
-1. Home Assistant에서 **설정 → 앱 → 앱 스토어 → ⋮ → 저장소**로 이동합니다.
-1. `https://github.com/3735943886/app-wireguard`를 추가합니다.
+아래 버튼을 누르면 Home Assistant에 이 저장소를 바로 추가할 수 있습니다.
+
+[![Home Assistant에 저장소 추가][add-repo-badge]][add-repo]
+
+1. 버튼을 누르고 Home Assistant 주소를 확인한 뒤 **추가**를 누릅니다.
 1. 목록에 나타난 **ipTIME redirect (WireGuard)**를 설치합니다. Home Assistant가
    직접 이미지를 빌드하므로 처음 설치는 몇 분 걸립니다.
+
+버튼이 동작하지 않으면 **설정 → 앱 → 앱 스토어 → ⋮ → 저장소**에서
+`https://github.com/3735943886/app-wireguard`를 직접 추가하세요.
 
 설정과 ipTIME 등록 방법은 [문서](wireguard/DOCS.md)를 참고하세요.
 
@@ -38,5 +44,7 @@ LG 가전 ──▶ ipTIME ══WireGuard══▶ 이 앱 ──DNAT──▶ 
 포크해 ipTIME 용도에 맞게 고친 것입니다. 원본과 같이 [MIT 라이선스](LICENSE.md)를
 따릅니다. WireGuard®는 Jason A. Donenfeld의 등록 상표입니다.
 
+[add-repo]: https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2F3735943886%2Fapp-wireguard
+[add-repo-badge]: https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg
 [rusthinq]: https://github.com/3735943886/rusthinq-local
 [upstream]: https://github.com/hassio-addons/app-wireguard
