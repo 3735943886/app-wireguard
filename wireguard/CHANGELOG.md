@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.6
+
+- Stop pinning Alpine package versions, so the app keeps building when
+  Alpine replaces a package with a newer release
+
 ## 0.0.5
 
 - Document adding redirects in the configuration UI and the ThinQ1 ports

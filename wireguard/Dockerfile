@@ -6,19 +6,19 @@ FROM ${BUILD_FROM}
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Setup base
-# hadolint ignore=DL3003
+# hadolint ignore=DL3003,DL3018
 RUN \
     apk add --no-cache --virtual .build-dependencies \
-        build-base=0.5-r4 \
-        git=2.54.1-r0 \
+        build-base \
+        git \
     \
     && apk add --no-cache \
-        busybox-extras=1.37.0-r31 \
+        busybox-extras \
         go \
-        iptables=1.8.13-r0 \
-        libqrencode-tools=4.1.1-r3 \
-        openresolv=3.17.4-r0 \
-        wireguard-tools=1.0.20260223-r0 \
+        iptables \
+        libqrencode-tools \
+        openresolv \
+        wireguard-tools \
     \
     && ln -sf /sbin/xtables-nft-multi /sbin/ip6tables \
     && ln -sf /sbin/xtables-nft-multi /sbin/iptables \
